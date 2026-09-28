@@ -2,14 +2,15 @@
    dashboard.js — SOC ops dashboard: incident queue, MTTA/MTTR/SLA, live feed
 ================================================================ */
 
-const API = 'http://localhost:5000/api';
+const API = (window.location.origin.startsWith('http') ? window.location.origin : 'http://localhost:5000') + '/api';
 let socket = null;
 let openAlertCount = 0;
 
 // ─── WebSocket ────────────────────────────────────────────────
 
 function initWebSocket() {
-  socket = io('http://localhost:5000', {
+  const socketUrl = window.location.origin.startsWith('http') ? window.location.origin : 'http://localhost:5000';
+  socket = io(socketUrl, {
     transports: ['websocket', 'polling'],
     reconnectionDelay: 1000,
     reconnectionAttempts: 10,

@@ -832,8 +832,8 @@ if __name__ == "__main__":
     print("  SOC Monitoring & Incident Detection Lab — v2.0")
     print("  Interview-Grade SOC L1 Workflow")
     print("=" * 60)
-    print(f"  Dashboard : http://localhost:5000")
-    print(f"  API       : http://localhost:5000/api")
-    print(f"  Reports   : {REPORTS_DIR}")
+    port = int(os.environ.get("PORT", 5000))
+    print(f"  Listening : http://0.0.0.0:{port}")
     print("=" * 60)
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)
+    socketio.run(app, host="0.0.0.0", port=port, debug=False, allow_unsafe_werkzeug=True)
+
