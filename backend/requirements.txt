@@ -1,6 +1,5 @@
-flask>=3.0.0
-flask-cors>=4.0.0
-flask-socketio>=5.3.6
-reportlab>=4.1.0
-python-engineio>=4.9.0
-python-socketio>=5.11.0
+flask
+flask-cors
+flask-socketio
+simple-websocket
+reportlab

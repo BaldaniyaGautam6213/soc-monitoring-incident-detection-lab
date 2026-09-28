@@ -11,19 +11,25 @@ let openAlertCount = 0;
 function initWebSocket() {
   const socketUrl = window.location.origin.startsWith('http') ? window.location.origin : 'http://localhost:5000';
   socket = io(socketUrl, {
-    transports: ['websocket', 'polling'],
+    transports: ['polling', 'websocket'],
     reconnectionDelay: 1000,
-    reconnectionAttempts: 10,
+    reconnectionAttempts: 20,
+    timeout: 10000,
   });
 
   socket.on('connect', () => {
     setWsStatus('connected');
-    appendLog('[ WebSocket connected — Real-time monitoring active ]', 'log-system');
+    appendLog('[ Live stream connected — Real-time monitoring active ]', 'log-system');
   });
 
-  socket.on('disconnect', () => {
+  socket.on('connect_error', (err) => {
+    console.warn('[Socket connection error]', err.message);
+    setWsStatus('connecting');
+  });
+
+  socket.on('disconnect', (reason) => {
     setWsStatus('disconnected');
-    appendLog('[ WebSocket disconnected — attempting to reconnect... ]', 'log-error');
+    appendLog(`[ Stream disconnected: ${reason} — attempting to reconnect... ]`, 'log-error');
   });
 
   socket.on('connected', (data) => {
@@ -466,5 +472,6 @@ document.addEventListener('DOMContentLoaded', () => {
   updateClock();
 });
 
-window.API    = API;
-window.socket = () => socket;
+window.API           = API;
+window.socket        = () => socket;
+window.runSimulation = window.simulateSingle;
