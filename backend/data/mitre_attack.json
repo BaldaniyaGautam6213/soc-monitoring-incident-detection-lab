@@ -1,0 +1,186 @@
+{
+  "techniques": {
+    "T1110.001": {
+      "id": "T1110.001",
+      "name": "Brute Force: Password Guessing",
+      "tactic": "Credential Access",
+      "tactic_id": "TA0006",
+      "description": "Adversaries with no prior knowledge of legitimate credentials within the system or environment may guess passwords to attempt access to accounts. Without knowledge of the password for an account, an adversary may opt to guess systematically. Password guessing may place an adversary into a risk of account lockout depending on the organization's login failure policies.",
+      "detection": "Monitor authentication logs for repeated failed login attempts (Windows Event 4625, Linux /var/log/auth.log) from the same source IP or targeting the same account. Alert on threshold breaches (e.g., >10 failures in 60 seconds). Correlate with Event 4624 to detect successful login after repeated failures.",
+      "remediation": [
+        "Verify source IP is not an authorized vulnerability scanner or automated system",
+        "Check if any authentication attempt succeeded (Event 4624 after 4625 cluster)",
+        "Review targeted account privileges — is it an admin or service account?",
+        "Check geo/location anomaly of source IP",
+        "Verify MFA is enabled on the targeted account",
+        "Block source IP at perimeter firewall if confirmed malicious",
+        "Reset credentials if account was successfully compromised",
+        "Document timeline, IOCs, and tune detection threshold if false positive"
+      ],
+      "false_positives": [
+        "Authorized vulnerability scanners (Nessus, Qualys, Rapid7)",
+        "Authentication testing tools used by red team",
+        "Misconfigured service accounts with cached wrong password",
+        "Password manager failures after password change"
+      ],
+      "severity": "High",
+      "confidence": 88,
+      "platforms": ["Windows", "Linux", "macOS", "Network"],
+      "data_sources": ["Windows Event 4625/4624", "Linux auth.log", "SSH logs", "VPN logs"]
+    },
+    "T1059.001": {
+      "id": "T1059.001",
+      "name": "Command and Scripting Interpreter: PowerShell",
+      "tactic": "Execution",
+      "tactic_id": "TA0002",
+      "description": "Adversaries may abuse PowerShell commands and scripts for execution. PowerShell is a powerful interactive command-line interface and scripting environment included in the Windows operating system. Adversaries can use PowerShell to perform a number of actions including discovery of information and execution of code with encoded commands to evade detection. The -EncodedCommand flag, -WindowStyle Hidden, and -ExecutionPolicy Bypass are strong indicators of malicious use.",
+      "detection": "Monitor for PowerShell execution with suspicious flags: -EncodedCommand/-Enc, -WindowStyle Hidden, -ExecutionPolicy Bypass, -nop/-NonInteractive. Sysmon Event ID 1 (ProcessCreate) with powershell.exe. Enable PowerShell Script Block Logging (Event 4104). Alert on unusual parent processes (Office apps, browsers) spawning PowerShell.",
+      "remediation": [
+        "Decode the base64 encoded command and analyze its intent",
+        "Inspect the parent process — is it Office, browser, or another unusual launcher?",
+        "List all child processes spawned by the PowerShell process (Sysmon Event 1)",
+        "Check outbound network connections from the PowerShell process (Sysmon Event 3)",
+        "Search the destination IP/domain in threat intelligence",
+        "Search the same IOCs across all endpoints in the environment",
+        "Isolate the host if a malicious payload was confirmed delivered or executed",
+        "Submit file hash to sandbox for automated analysis",
+        "Enable PowerShell Constrained Language Mode and Script Block Logging"
+      ],
+      "false_positives": [
+        "Authorized administrative scripts run by IT operations",
+        "Software deployment and configuration management tools (SCCM, Ansible)",
+        "Legitimate security tools that use PowerShell",
+        "Developer workflows using encoded commands for special characters"
+      ],
+      "severity": "High",
+      "confidence": 91,
+      "platforms": ["Windows"],
+      "data_sources": ["Sysmon Event 1", "Sysmon Event 3", "Windows Event 4688", "PowerShell Event 4104"]
+    },
+    "T1204.002": {
+      "id": "T1204.002",
+      "name": "User Execution: Malicious File",
+      "tactic": "Execution",
+      "tactic_id": "TA0002",
+      "description": "An adversary may rely upon a user opening a malicious file in order to gain execution. Users may be subjected to social engineering to get them to open a file that will lead to code execution. Malicious files may be delivered via spearphishing as attachments (T1566.001). A malicious Office document spawning a shell process (cmd.exe, powershell.exe, wscript.exe) is a classic indicator of a malicious macro being executed by the user. The evidence here is the parent-child relationship: Office application → shell, not code injected into the Office process memory.",
+      "detection": "Monitor for Office applications (WINWORD.EXE, EXCEL.EXE, OUTLOOK.EXE, POWERPNT.EXE) spawning shell processes (cmd.exe, powershell.exe, wscript.exe, mshta.exe, cscript.exe). This is detected via Sysmon Event ID 1 parent-child process relationship. This indicates macro execution, not process injection — process injection would require evidence of OpenProcess + WriteProcessMemory + CreateRemoteThread (Sysmon Event 8/10).",
+      "remediation": [
+        "Identify the originating document — what is the filename and who sent it?",
+        "Check document sender email and header for phishing indicators",
+        "List all child processes spawned from the Office process (Sysmon Event 1)",
+        "Review network connections made by the spawned child processes",
+        "Determine if a payload was downloaded (Sysmon Event 11 FileCreate, Event 3 NetworkConnect)",
+        "Search for the file hash across all endpoints",
+        "Quarantine the malicious document and isolate the host if payload was executed",
+        "Report phishing origin to email security team for sender blocking",
+        "Train user on phishing document indicators"
+      ],
+      "false_positives": [
+        "Legitimate Office macros used for business automation (verify with document owner)",
+        "Legitimate admin scripts launched via Office automation",
+        "IT-deployed macros via Group Policy"
+      ],
+      "severity": "Critical",
+      "confidence": 87,
+      "platforms": ["Windows"],
+      "data_sources": ["Sysmon Event 1", "Windows Event 4688", "EDR process telemetry"]
+    },
+    "T1046": {
+      "id": "T1046",
+      "name": "Network Service Discovery",
+      "tactic": "Discovery",
+      "tactic_id": "TA0007",
+      "description": "Adversaries may attempt to get a listing of services running on remote hosts, including those that may be vulnerable to remote exploitation. Network service discovery via port scanning allows adversaries to identify open ports and running services on target systems. Tools like Nmap, Masscan, and Zmap are commonly used. SYN scanning sends half-open TCP connections to identify open ports without completing the handshake.",
+      "detection": "Monitor for large volumes of SYN packets to sequential or diverse ports from a single source IP within a short time window. Suricata ET SCAN signatures will detect Nmap, Masscan, and similar tools. Look for half-open connections (SYN without ACK). Alert on >100 unique destination ports from one source in under 60 seconds.",
+      "remediation": [
+        "Verify source IP is not an authorized vulnerability scanner (Nessus, Qualys, internal red team)",
+        "If unauthorized: block source IP at perimeter firewall immediately",
+        "Review what services/ports were discovered to understand attacker awareness",
+        "Check firewall rules — ensure only required ports are exposed",
+        "Correlate with authentication logs — did the scanner follow up with login attempts?",
+        "Enable rate limiting and connection tracking on network edge devices",
+        "Investigate what the scanner may have found to anticipate next attacker steps"
+      ],
+      "false_positives": [
+        "Authorized vulnerability scanners (Nessus, Qualys, Rapid7 InsightVM)",
+        "Network monitoring tools (Zabbix, Nagios port checks)",
+        "Internal red team or penetration test activity",
+        "Load balancer health checks"
+      ],
+      "severity": "Medium",
+      "confidence": 82,
+      "platforms": ["Network"],
+      "data_sources": ["Suricata/Zeek alerts", "Firewall logs", "Network flow data", "IDS/IPS"]
+    },
+    "T1134": {
+      "id": "T1134",
+      "name": "Access Token Manipulation",
+      "tactic": "Privilege Escalation",
+      "tactic_id": "TA0004",
+      "description": "Windows uses access tokens to determine the ownership of a running process and what privileges it holds. Adversaries may use access tokens to operate under a different user or system security context to perform actions and bypass access controls. Windows Event 4672 indicates that sensitive privileges (SeDebugPrivilege, SeImpersonatePrivilege, SeTcbPrivilege) were assigned to a new logon session. Combined with Event 4673 (privileged service called) and process access to LSASS, this indicates token manipulation behavior — an adversary has obtained or is using a token with elevated privileges beyond their normal account.",
+      "detection": "Monitor Windows Event 4672 (Special Privileges Assigned to New Logon) for sensitive privileges: SeDebugPrivilege, SeImpersonatePrivilege, SeTcbPrivilege, SeAssignPrimaryTokenPrivilege. Alert when these are assigned to non-service, non-system accounts. Correlate with Event 4673 (Privileged Service Called) and Sysmon Event 10 (ProcessAccess) targeting lsass.exe.",
+      "remediation": [
+        "Identify which account received the sensitive privileges and verify if authorized",
+        "Review what actions were performed during the elevated session (Event 4688 process creates)",
+        "Check for LSASS process access (Sysmon Event 10) which may indicate credential dumping",
+        "Determine if the privileges were used to create new processes or access sensitive resources",
+        "Apply principle of least privilege — remove unnecessary SeDebugPrivilege from user accounts",
+        "Enable Windows Credential Guard to protect LSASS from memory reading",
+        "Isolate the endpoint and conduct memory forensics if credential dumping is suspected",
+        "Reset any credentials that may have been exposed"
+      ],
+      "false_positives": [
+        "Legitimate administrative tools that require SeDebugPrivilege (Process Explorer, WinDbg)",
+        "Security software (EDR agents, antivirus) that require elevated token access",
+        "IT automation tools running under service accounts with elevated privileges",
+        "Database services requiring impersonation privileges"
+      ],
+      "severity": "Critical",
+      "confidence": 79,
+      "platforms": ["Windows"],
+      "data_sources": ["Windows Event 4672", "Windows Event 4673", "Sysmon Event 10", "Windows Event 4688"]
+    },
+    "T1547.001": {
+      "id": "T1547.001",
+      "name": "Boot or Logon Autostart Execution: Registry Run Keys / Startup Folder",
+      "tactic": "Persistence",
+      "tactic_id": "TA0003",
+      "description": "Adversaries may achieve persistence by adding a program to a startup folder or referencing it with a Registry run key. Adding an entry to the run keys in the Registry or startup folder will cause the program referenced to be executed when a user logs in. These locations are commonly used by malware to survive reboots. Sysmon Event ID 13 (RegistryEvent: Value Set) for HKLM/HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run is a high-fidelity indicator of persistence being established.",
+      "detection": "Monitor Sysmon Event ID 13 (RegistryEvent Value Set) for writes to HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run, HKCU\\...\\Run, and RunOnce variants. Baseline known-good run key entries and alert on new entries. Correlate with Sysmon Event 11 (FileCreate) for the dropped file. High confidence when a non-standard process (cmd.exe, powershell.exe) writes the run key rather than an installer.",
+      "remediation": [
+        "Remove the malicious registry run key entry immediately",
+        "Locate and quarantine the executable referenced in the run key",
+        "Check file hash against threat intelligence",
+        "Search for the same file hash across all endpoints in the environment",
+        "Review how the file was delivered — trace back to the initial access vector",
+        "Run a full endpoint scan to identify additional persistence mechanisms",
+        "Consider restoring from known-good snapshot if malware infection is confirmed",
+        "Implement registry monitoring and baselining for run key paths"
+      ],
+      "false_positives": [
+        "Legitimate software installers that add themselves to startup",
+        "IT-deployed software that uses run keys for persistence (antivirus, agents)",
+        "User-installed applications that autostart (messaging apps, cloud sync tools)"
+      ],
+      "severity": "High",
+      "confidence": 85,
+      "platforms": ["Windows"],
+      "data_sources": ["Sysmon Event 13", "Windows Registry monitoring", "EDR telemetry", "Sysmon Event 11"]
+    }
+  },
+  "tactics": {
+    "TA0001": "Initial Access",
+    "TA0002": "Execution",
+    "TA0003": "Persistence",
+    "TA0004": "Privilege Escalation",
+    "TA0005": "Defense Evasion",
+    "TA0006": "Credential Access",
+    "TA0007": "Discovery",
+    "TA0008": "Lateral Movement",
+    "TA0009": "Collection",
+    "TA0010": "Exfiltration",
+    "TA0011": "Command and Control",
+    "TA0040": "Impact"
+  },
+  "_note": "Techniques corrected per ATT&CK evidence-based mapping: T1055 removed (no memory injection evidence), T1548 removed (no UAC bypass evidence), T1204.002 added for Office child spawn, T1134 added for token manipulation via 4672/4673."
+}

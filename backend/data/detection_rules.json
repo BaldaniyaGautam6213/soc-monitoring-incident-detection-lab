@@ -1,0 +1,211 @@
+[
+  {
+    "rule_id": "AUTH-001",
+    "name": "Brute Force Login — Multiple Failed Authentication Attempts",
+    "description": "Multiple failed login attempts from the same source IP within a short time window, exceeding the threshold for normal authentication failures.",
+    "log_source": "Windows Security",
+    "event_ids": [4625],
+    "conditions": {
+      "threshold": 5,
+      "timewindow_seconds": 60,
+      "group_by": "source_ip",
+      "field_matches": { "event_type": "FAILED_LOGIN" }
+    },
+    "matched_conditions_template": [
+      "Event ID = 4625 (Failed Logon)",
+      "Source IP repeated across {count} events",
+      "Threshold exceeded: {count} failures in {window}s",
+      "Logon Type = 3 (Network) or 10 (RemoteInteractive)"
+    ],
+    "severity": "High",
+    "confidence": 88,
+    "priority_map": { "Critical_asset": "P1", "High_asset": "P2", "default": "P2" },
+    "mitre_technique": "T1110.001",
+    "mitre_tactic": "Credential Access",
+    "tags": ["brute-force", "credential-access", "authentication", "password-guessing"],
+    "false_positives": [
+      "Authorized vulnerability scanners (Nessus, Qualys, Rapid7)",
+      "Authentication testing tools used by red team",
+      "Misconfigured service accounts with cached wrong password",
+      "Password manager failures after a recent password change"
+    ],
+    "response_playbook_id": "PB-AUTH-001",
+    "response_actions": ["block_ip", "notify_analyst", "check_successful_login"]
+  },
+  {
+    "rule_id": "PS-001",
+    "name": "Suspicious PowerShell Execution — Encoded Command",
+    "description": "PowerShell launched with -EncodedCommand or execution policy bypass flags from an unusual parent process, indicating potential malware payload execution.",
+    "log_source": "Sysmon",
+    "event_ids": [1],
+    "conditions": {
+      "threshold": 1,
+      "timewindow_seconds": 1,
+      "field_matches": { "process_name": "powershell.exe" },
+      "regex_matches": {
+        "command_line": "(-EncodedCommand|-Enc\\s|-WindowStyle\\s+Hidden|-ExecutionPolicy\\s+Bypass|-nop[^a-z])"
+      }
+    },
+    "matched_conditions_template": [
+      "Event ID = 1 (Process Create)",
+      "Image = powershell.exe",
+      "CommandLine matches encoded/bypass pattern",
+      "Parent process = {parent_process}"
+    ],
+    "severity": "High",
+    "confidence": 91,
+    "priority_map": { "Critical_asset": "P1", "High_asset": "P1", "default": "P1" },
+    "mitre_technique": "T1059.001",
+    "mitre_tactic": "Execution",
+    "tags": ["powershell", "execution", "encoded-command", "lolbin", "defense-evasion"],
+    "false_positives": [
+      "Authorized administrative scripts run by IT operations",
+      "Software deployment tools (SCCM, Ansible, Puppet)",
+      "Legitimate security tools that use encoded PowerShell",
+      "Developer workflows using encoded commands for special character handling"
+    ],
+    "response_playbook_id": "PB-PS-001",
+    "response_actions": ["decode_command", "inspect_parent", "check_network", "isolate_if_confirmed"]
+  },
+  {
+    "rule_id": "PROC-001",
+    "name": "Malicious Office Child Process — Macro Execution Indicator",
+    "description": "Office application (Word, Excel, Outlook) spawned a shell process (cmd, powershell, wscript). This is a high-fidelity indicator of a malicious macro executing a payload. This is NOT process injection (T1055) — it is user execution of a malicious file (T1204.002). Process injection requires evidence of code written into another process's memory space.",
+    "log_source": "Sysmon",
+    "event_ids": [1],
+    "conditions": {
+      "threshold": 1,
+      "timewindow_seconds": 1,
+      "field_matches": {},
+      "regex_matches": {
+        "parent_process": "(WINWORD|EXCEL|OUTLOOK|POWERPNT|winword|excel|outlook)\\.exe",
+        "process_name": "(cmd|powershell|wscript|cscript|mshta|rundll32)\\.exe"
+      }
+    },
+    "matched_conditions_template": [
+      "Event ID = 1 (Process Create)",
+      "ParentImage matches Office application: {parent_process}",
+      "Image matches shell/script interpreter: {process_name}",
+      "CommandLine = {command_line}"
+    ],
+    "severity": "Critical",
+    "confidence": 87,
+    "priority_map": { "Critical_asset": "P1", "High_asset": "P1", "default": "P1" },
+    "mitre_technique": "T1204.002",
+    "mitre_tactic": "Execution",
+    "tags": ["office-macro", "phishing", "user-execution", "malicious-file", "T1204.002"],
+    "false_positives": [
+      "Legitimate Office macros used for business automation (confirm with document owner)",
+      "IT-deployed macros via Group Policy for legitimate workflows",
+      "Office automation via COM objects used by authorized applications"
+    ],
+    "response_playbook_id": "PB-PROC-001",
+    "response_actions": ["identify_document", "check_sender", "list_child_processes", "isolate_host"]
+  },
+  {
+    "rule_id": "NET-001",
+    "name": "Network Port Scan — Reconnaissance Activity",
+    "description": "Single source IP sending SYN packets to more than 50 unique destination ports — consistent with automated port scanning (Nmap, Masscan) for network reconnaissance.",
+    "log_source": "Suricata",
+    "event_ids": [2100538],
+    "conditions": {
+      "threshold": 50,
+      "timewindow_seconds": 10,
+      "group_by": "source_ip",
+      "field_matches": {},
+      "regex_matches": {
+        "raw_log": "ET SCAN"
+      }
+    },
+    "matched_conditions_template": [
+      "Suricata signature: ET SCAN (SYN Scan Detected)",
+      "{count} unique port probes observed from attacker",
+      "Scan rate: {rate} probes/second in {window}s window",
+      "Protocol: TCP SYN (half-open reconnaissance)"
+    ],
+    "severity": "Medium",
+    "confidence": 82,
+    "priority_map": { "Critical_asset": "P2", "High_asset": "P2", "default": "P3" },
+    "mitre_technique": "T1046",
+    "mitre_tactic": "Discovery",
+    "tags": ["port-scan", "network-recon", "discovery", "suricata", "nmap"],
+    "false_positives": [
+      "Authorized vulnerability scanners (Nessus, Qualys, Rapid7 InsightVM)",
+      "Network monitoring tools performing port checks (Zabbix, Nagios)",
+      "Internal red team or authorized penetration testing activity",
+      "Load balancer health checks generating connection patterns"
+    ],
+    "response_playbook_id": "PB-NET-001",
+    "response_actions": ["verify_scanner_authorization", "block_ip", "review_firewall"]
+  },
+  {
+    "rule_id": "TOKEN-001",
+    "name": "Access Token Manipulation — Sensitive Privileges Assigned",
+    "description": "Sensitive privileges (SeDebugPrivilege, SeImpersonatePrivilege, SeTcbPrivilege) were assigned to a non-service logon session, followed by privileged service access. This indicates access token manipulation. NOTE: Event 4672 alone does not prove privilege escalation — it proves token privileges exist. Correlation with LSASS access (Sysmon 10) strengthens this. T1134 is correct here, NOT T1548 (which requires UAC bypass or setuid evidence).",
+    "log_source": "Windows Security",
+    "event_ids": [4672],
+    "conditions": {
+      "threshold": 1,
+      "timewindow_seconds": 1,
+      "field_matches": { "event_type": "PRIVILEGE_USE" },
+      "regex_matches": {
+        "privileges": "(SeDebugPrivilege|SeTcbPrivilege|SeImpersonatePrivilege|SeAssignPrimaryTokenPrivilege)"
+      }
+    },
+    "matched_conditions_template": [
+      "Event ID = 4672 (Special Privileges Assigned to New Logon)",
+      "Sensitive privilege detected: {privileges}",
+      "Account: {user} (non-service account)",
+      "Correlated Event 4673 (Privileged Service Called): {correlated}"
+    ],
+    "severity": "Critical",
+    "confidence": 79,
+    "priority_map": { "Critical_asset": "P1", "High_asset": "P1", "default": "P1" },
+    "mitre_technique": "T1134",
+    "mitre_tactic": "Privilege Escalation",
+    "tags": ["token-manipulation", "privilege-escalation", "seDebugPrivilege", "T1134"],
+    "false_positives": [
+      "Legitimate administrative tools (Process Explorer, WinDbg) that require SeDebugPrivilege",
+      "Security software (EDR agents, antivirus) with elevated token access",
+      "IT automation tools running under service accounts with elevated privileges",
+      "Database services requiring SeImpersonatePrivilege (SQL Server, IIS)"
+    ],
+    "response_playbook_id": "PB-TOKEN-001",
+    "response_actions": ["identify_account", "check_lsass_access", "review_process_creates", "isolate_if_confirmed"]
+  },
+  {
+    "rule_id": "REG-001",
+    "name": "Persistence via Registry Run Key Modification",
+    "description": "A new entry was written to HKLM or HKCU CurrentVersion\\Run registry key by a non-installer process. This is a common persistence mechanism used by malware to survive reboots. High confidence when cmd.exe or powershell.exe writes the key rather than a legitimate installer (msiexec.exe, setup.exe).",
+    "log_source": "Sysmon",
+    "event_ids": [13],
+    "conditions": {
+      "threshold": 1,
+      "timewindow_seconds": 1,
+      "field_matches": {},
+      "regex_matches": {
+        "registry_key": "(HKLM|HKCU)\\\\.*\\\\(Run|RunOnce)"
+      }
+    },
+    "matched_conditions_template": [
+      "Event ID = 13 (RegistryEvent Value Set)",
+      "TargetObject matches Run key path: {registry_key}",
+      "Value name: {registry_value}",
+      "Value data (executable path): {registry_data}",
+      "Written by process: {process_name} (expected: msiexec.exe or installer)"
+    ],
+    "severity": "High",
+    "confidence": 85,
+    "priority_map": { "Critical_asset": "P1", "High_asset": "P2", "default": "P2" },
+    "mitre_technique": "T1547.001",
+    "mitre_tactic": "Persistence",
+    "tags": ["persistence", "registry", "run-key", "autostart", "T1547.001"],
+    "false_positives": [
+      "Legitimate software installers that add themselves to startup (verify with IT asset inventory)",
+      "IT-deployed software using run keys for agent persistence (AV, EDR, monitoring agents)",
+      "User-installed applications that autostart (messaging apps, cloud sync tools)"
+    ],
+    "response_playbook_id": "PB-REG-001",
+    "response_actions": ["remove_registry_key", "quarantine_executable", "search_hash_environment"]
+  }
+]

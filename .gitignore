@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+ENV/
+
+# Environment variables
+.env
+*.env
+.envrc
+
+# Database — contains simulated data, regenerated on first run
+backend/data/soc_lab.db
+
+# Generated PDF reports
+reports/*.pdf
+reports/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# OS
+desktop.ini
+
+# Temp / scratch
+*.tmp
+*.bak
+scratch/

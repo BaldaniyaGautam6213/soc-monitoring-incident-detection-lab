@@ -1,0 +1,209 @@
+{
+  "PB-AUTH-001": {
+    "id": "PB-AUTH-001",
+    "rule_id": "AUTH-001",
+    "title": "Brute Force Login Response Playbook",
+    "mitre_technique": "T1110.001",
+    "nist_phases": {
+      "Detection": [
+        { "id": "D1", "step": "Confirm the alert details — source IP, target account, event count and timeframe" },
+        { "id": "D2", "step": "Verify source IP is NOT an authorized scanner (check scanner IP whitelist: Nessus, Qualys, red team ranges)" },
+        { "id": "D3", "step": "Check if ANY login attempt succeeded — search for Event 4624 from the same source IP after the 4625 cluster" }
+      ],
+      "Triage": [
+        { "id": "T1", "step": "Identify the targeted account — is it admin, service account, or regular user?" },
+        { "id": "T2", "step": "Check geo-location and ASN of source IP — is it expected for this user?" },
+        { "id": "T3", "step": "Review MFA status on the targeted account in Active Directory" },
+        { "id": "T4", "step": "Determine if this is an isolated incident or part of a wider campaign (same IP attacking multiple accounts?)" }
+      ],
+      "Containment": [
+        { "id": "C1", "step": "[SIMULATED] Block source IP at perimeter firewall — confirm with network team before executing on production" },
+        { "id": "C2", "step": "Temporarily lock the targeted account if a successful login is confirmed" },
+        { "id": "C3", "step": "Force password reset on the account if compromise is suspected" }
+      ],
+      "Eradication": [
+        { "id": "E1", "step": "Reset compromised credentials and invalidate active sessions" },
+        { "id": "E2", "step": "Verify MFA is enabled and functioning on the account" },
+        { "id": "E3", "step": "Review account for unauthorized changes made during the compromised session" }
+      ],
+      "Recovery": [
+        { "id": "R1", "step": "Monitor account activity for 48 hours for continued suspicious behavior" },
+        { "id": "R2", "step": "Document all IOCs (source IP, targeted accounts, timestamps)" },
+        { "id": "R3", "step": "Update detection rule threshold if alert was a false positive (tune for scanner IPs)" }
+      ]
+    }
+  },
+  "PB-PS-001": {
+    "id": "PB-PS-001",
+    "rule_id": "PS-001",
+    "title": "Suspicious PowerShell Execution Response Playbook",
+    "mitre_technique": "T1059.001",
+    "nist_phases": {
+      "Detection": [
+        { "id": "D1", "step": "Capture the full command line including the -EncodedCommand value" },
+        { "id": "D2", "step": "Decode the base64-encoded command: [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('<encoded>'))" },
+        { "id": "D3", "step": "Identify the parent process that launched PowerShell — document the full parent path" }
+      ],
+      "Triage": [
+        { "id": "T1", "step": "Classify parent process — is it Office (phishing macro), browser (drive-by), or scheduled task (persistence)?" },
+        { "id": "T2", "step": "List all child processes spawned by the PowerShell process (Sysmon Event 1, parent PID filter)" },
+        { "id": "T3", "step": "Check all outbound network connections from the PowerShell process (Sysmon Event 3)" },
+        { "id": "T4", "step": "Search destination IP/domain in local threat intel — is it known malicious?" },
+        { "id": "T5", "step": "Check file creation events (Sysmon Event 11) from the PowerShell process — was a payload dropped?" }
+      ],
+      "Containment": [
+        { "id": "C1", "step": "[SIMULATED] Isolate the affected endpoint from the network" },
+        { "id": "C2", "step": "[SIMULATED] Block destination IP/domain at firewall and DNS filter" },
+        { "id": "C3", "step": "Terminate the malicious PowerShell process if still running" }
+      ],
+      "Eradication": [
+        { "id": "E1", "step": "Search for and remove any dropped payload files (use file hash to search across environment)" },
+        { "id": "E2", "step": "Check registry run keys for persistence (HKLM/HKCU\\CurrentVersion\\Run)" },
+        { "id": "E3", "step": "Submit file hash and decoded command to sandbox for analysis" },
+        { "id": "E4", "step": "Search same IOCs (hash, IP, domain) across all other endpoints" }
+      ],
+      "Recovery": [
+        { "id": "R1", "step": "Restore endpoint from backup or reimage if malware infection confirmed" },
+        { "id": "R2", "step": "Enable PowerShell Script Block Logging (Event 4104) if not already enabled" },
+        { "id": "R3", "step": "Consider enforcing PowerShell Constrained Language Mode for standard users" },
+        { "id": "R4", "step": "Document decoded command, IOCs, and attack chain in incident report" }
+      ]
+    }
+  },
+  "PB-PROC-001": {
+    "id": "PB-PROC-001",
+    "rule_id": "PROC-001",
+    "title": "Malicious Office Child Process Response Playbook",
+    "mitre_technique": "T1204.002",
+    "nist_phases": {
+      "Detection": [
+        { "id": "D1", "step": "Identify the Office application and document that triggered the child process spawn" },
+        { "id": "D2", "step": "Determine the full command line of the spawned child process" },
+        { "id": "D3", "step": "Check the document origin — email attachment, download, shared drive?" }
+      ],
+      "Triage": [
+        { "id": "T1", "step": "Verify with the user — did they intentionally open this document and enable macros?" },
+        { "id": "T2", "step": "Check email headers if document came as attachment — is sender spoofed or external?" },
+        { "id": "T3", "step": "List all subsequent processes in the chain (child, grandchild) using PID tracking" },
+        { "id": "T4", "step": "Review network connections from child processes — was data exfiltrated or C2 contacted?" }
+      ],
+      "Containment": [
+        { "id": "C1", "step": "[SIMULATED] Isolate affected endpoint from network" },
+        { "id": "C2", "step": "Quarantine the malicious document — preserve for forensic analysis" },
+        { "id": "C3", "step": "[SIMULATED] Block communication to identified C2 addresses" }
+      ],
+      "Eradication": [
+        { "id": "E1", "step": "Remove any payload files dropped by the macro execution" },
+        { "id": "E2", "step": "Check for persistence mechanisms added during execution (registry, scheduled tasks, startup)" },
+        { "id": "E3", "step": "Submit document and payload hashes to sandbox/AV" },
+        { "id": "E4", "step": "Search document hash and IOCs across all endpoints" }
+      ],
+      "Recovery": [
+        { "id": "R1", "step": "Restore endpoint to known-good state if malware executed successfully" },
+        { "id": "R2", "step": "Report phishing email to email security team for sender domain/IP blocking" },
+        { "id": "R3", "step": "Disable macros by default via Group Policy for non-authorized users" },
+        { "id": "R4", "step": "Conduct user awareness training on document-based phishing" }
+      ]
+    }
+  },
+  "PB-NET-001": {
+    "id": "PB-NET-001",
+    "rule_id": "NET-001",
+    "title": "Network Port Scan Response Playbook",
+    "mitre_technique": "T1046",
+    "nist_phases": {
+      "Detection": [
+        { "id": "D1", "step": "Confirm scan source IP and total ports scanned within the time window" },
+        { "id": "D2", "step": "Check scanner IP against authorized scanner whitelist (Nessus, Qualys, red team IPs)" },
+        { "id": "D3", "step": "Determine if scan is from internal network (lateral movement concern) or external" }
+      ],
+      "Triage": [
+        { "id": "T1", "step": "Identify which internal hosts were scanned — any critical assets targeted?" },
+        { "id": "T2", "step": "Check if scanner subsequently attempted to authenticate to discovered open ports" },
+        { "id": "T3", "step": "Review firewall logs for same source IP in the preceding 24 hours" }
+      ],
+      "Containment": [
+        { "id": "C1", "step": "[SIMULATED] Block source IP at perimeter firewall if unauthorized" },
+        { "id": "C2", "step": "Null-route the source IP at network level if internal scan from compromised host" },
+        { "id": "C3", "step": "Alert network team to increase monitoring on the scanned IP range" }
+      ],
+      "Eradication": [
+        { "id": "E1", "step": "If internal source: investigate the scanning host for compromise (malware, unauthorized tool)" },
+        { "id": "E2", "step": "Review and tighten firewall rules based on what was discovered to be open" }
+      ],
+      "Recovery": [
+        { "id": "R1", "step": "Monitor for follow-up exploitation attempts on ports that were found open" },
+        { "id": "R2", "step": "Document scan scope, source, and classification (authorized/unauthorized)" },
+        { "id": "R3", "step": "If false positive: add scanner IP to whitelist and tune alert suppression" }
+      ]
+    }
+  },
+  "PB-TOKEN-001": {
+    "id": "PB-TOKEN-001",
+    "rule_id": "TOKEN-001",
+    "title": "Access Token Manipulation Response Playbook",
+    "mitre_technique": "T1134",
+    "nist_phases": {
+      "Detection": [
+        { "id": "D1", "step": "Identify the account that received the sensitive privileges (Event 4672 Subject Account)" },
+        { "id": "D2", "step": "Confirm this is NOT a service account or admin tool that legitimately requires these privileges" },
+        { "id": "D3", "step": "Check Event 4673 (Privileged Service Called) correlated with the same logon ID" }
+      ],
+      "Triage": [
+        { "id": "T1", "step": "Review Sysmon Event 10 (ProcessAccess) for LSASS access from non-system processes on this host" },
+        { "id": "T2", "step": "List all processes created during the elevated session (Event 4688 filtered by logon ID)" },
+        { "id": "T3", "step": "Check for whoami.exe, mimikatz.exe, or similar credential-dumping tools in process list" },
+        { "id": "T4", "step": "Determine if credentials were exfiltrated — check network connections from elevated session" }
+      ],
+      "Containment": [
+        { "id": "C1", "step": "[SIMULATED] Isolate the affected endpoint from the network" },
+        { "id": "C2", "step": "Invalidate the active session token — force re-authentication" },
+        { "id": "C3", "step": "Lock the affected account pending investigation" }
+      ],
+      "Eradication": [
+        { "id": "E1", "step": "If credential dump confirmed: initiate domain-wide password reset for all accounts" },
+        { "id": "E2", "step": "Rotate service account credentials and Kerberos tickets (krbtgt reset if necessary)" },
+        { "id": "E3", "step": "Remove any tools or payloads used to obtain the elevated token" }
+      ],
+      "Recovery": [
+        { "id": "R1", "step": "Enable Windows Credential Guard on affected and at-risk endpoints" },
+        { "id": "R2", "step": "Apply principle of least privilege — audit accounts with SeDebugPrivilege" },
+        { "id": "R3", "step": "Monitor for lateral movement using credentials obtained during the incident" }
+      ]
+    }
+  },
+  "PB-REG-001": {
+    "id": "PB-REG-001",
+    "rule_id": "REG-001",
+    "title": "Registry Persistence Response Playbook",
+    "mitre_technique": "T1547.001",
+    "nist_phases": {
+      "Detection": [
+        { "id": "D1", "step": "Capture the exact registry key path, value name, and value data (executable path)" },
+        { "id": "D2", "step": "Identify the process that wrote the registry key (should be msiexec.exe or installer — if cmd/powershell, high confidence malicious)" },
+        { "id": "D3", "step": "Verify the referenced executable exists on disk and retrieve its hash" }
+      ],
+      "Triage": [
+        { "id": "T1", "step": "Check executable hash against AV/threat intel — is it known malware?" },
+        { "id": "T2", "step": "Compare against IT asset inventory — is this a known-good application?" },
+        { "id": "T3", "step": "Trace back how the executable was delivered — check recent file creation events on the host" },
+        { "id": "T4", "step": "Check if executable has already executed (look for child processes of that executable)" }
+      ],
+      "Containment": [
+        { "id": "C1", "step": "[SIMULATED] Remove the malicious registry run key entry" },
+        { "id": "C2", "step": "[SIMULATED] Quarantine the referenced executable file" },
+        { "id": "C3", "step": "Prevent the executable from running via AppLocker or hash block rule" }
+      ],
+      "Eradication": [
+        { "id": "E1", "step": "Search for additional persistence mechanisms on the same host (scheduled tasks, startup folder, services)" },
+        { "id": "E2", "step": "Search for the same executable hash across all endpoints in the environment" },
+        { "id": "E3", "step": "Trace the initial access vector that delivered the malware" }
+      ],
+      "Recovery": [
+        { "id": "R1", "step": "Reimage endpoint if malware has been active for an extended period" },
+        { "id": "R2", "step": "Implement registry monitoring and baselining for run key paths on all endpoints" },
+        { "id": "R3", "step": "Document the persistence mechanism, IOCs, and remediation in the incident report" }
+      ]
+    }
+  }
+}
